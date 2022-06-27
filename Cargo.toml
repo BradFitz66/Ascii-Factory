@@ -8,7 +8,9 @@ edition = "2021"
 [dependencies]
 bevy = { git = "https://github.com/bevyengine/bevy.git" }
 rand = "*"
-noise="0.7"
+bracket-noise = "0.8.2"
+
+
 [dependencies.bracket-bevy]
 git="https://github.com/amethyst/bracket-lib.git"
 branch="bevy"
