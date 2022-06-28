@@ -1,14 +1,13 @@
 use bevy::prelude::*;
 use bracket_bevy::{prelude::*, FontCharType};
 
-#[derive(Component)]
+use super::MapComponents::TileType;
+
 //For rendering a single glyph
-pub struct GlyphRenderer {
-    pub glyph: FontCharType,
-    pub foreground: RGB,
-    pub background: RGB,
-    pub layer: i32,
+pub trait GlyphRenderer {
+    fn render_glyph(&self, x: i32, y: i32, ctx:&BracketContext);
 }
+
 
 #[derive(Component)]
 //For rendering multiple glyphs at once 

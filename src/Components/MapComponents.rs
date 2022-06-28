@@ -1,15 +1,37 @@
 use bevy::prelude::*;
-use bracket_bevy::{FontCharType, prelude::to_cp437};
+use bracket_bevy::{FontCharType, prelude::{to_cp437, RGB, *}, BracketContext};
 use bracket_noise::prelude::{FastNoise, FractalType, NoiseType};
 
 use std::time::{SystemTime, UNIX_EPOCH};
-#[derive(Component,Debug,Clone)]
+
+use super::DrawingComponents::GlyphRenderer;
+#[derive(Component,Debug,Clone,Copy)]
 pub struct Tile{
     pub tile_type: TileType,
-    pub tile_glyph: FontCharType
+    pub tile_glyph: FontCharType,
 }
 
-#[derive(Debug,Clone)] 
+impl GlyphRenderer for Tile {
+    fn render_glyph(&self, x: i32, y: i32, ctx: &bracket_bevy::BracketContext) {
+        //Render glyph based on tile_type
+        let glyph=match self.tile_type {
+            TileType::Nothing=>to_cp437(' ') ,
+            TileType::Binary0=>to_cp437('0'),
+            TileType::Binary1=>to_cp437('1'),
+            TileType::Ascii=>self.tile_glyph, //Defined externally,
+            TileType::Conveyer=>self.tile_glyph,//Defined externally
+        };
+        //Set fg and bg based on tile_type
+        let (fg,bg)=match self.tile_type {
+            TileType::Ascii | TileType::Binary0 | TileType::Binary1 | TileType::Nothing =>(RGB::named(WHITE),RGB::named(BLACK)),
+            TileType::Conveyer=>(RGB::named(YELLOW1),RGB::named(BLACK)),
+        };
+
+        ctx.set(x, y, fg, bg, glyph)
+    }
+}
+
+#[derive(Debug,Clone,Copy,PartialEq,Eq)] 
 pub enum TileType{
     Nothing,
     Binary0,//Resource type
@@ -36,6 +58,27 @@ pub struct Map{
     pub tiles: Vec<Tile>,
 }
 
+impl Map{
+    //Get tile from position
+    pub fn get_tile_at_pos(&self, x: i32, y: i32)->Tile{
+        //Bounds check
+        if x<0 || x>=self.width || y<0 || y>=self.height {
+            return Tile{
+                tile_type: TileType::Nothing,
+                tile_glyph: to_cp437(' '),
+            };
+        }
+        self.tiles[(y*self.width+x) as usize]
+    }
+    //Set tile at position
+    pub fn set_tile_at_pos(&mut self, x: i32, y: i32, tile: Tile){
+        //Bounds check
+        if x<0 || x>=self.width || y<0 || y>=self.height {
+            return;
+        }
+        self.tiles[(y*self.width+x) as usize]=tile;
+    }
+}
 
 impl Default for Map {
     fn default()->Map{
