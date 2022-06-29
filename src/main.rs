@@ -25,6 +25,7 @@ pub const SCREEN_WIDTH: i32 = 80;
 pub const SCREEN_HEIGHT: i32 = 60;
 const TIMESTEP: f64 = 1.0 / 60.0;
 const TIMESTEP_INPUT: f64 = 12.0 / 60.0;
+const TIMESTEP_MACHINE: f64 = 120.0 / 60.0;
 const LAYERS: i32 = 2;
 #[derive(Clone, Eq, PartialEq, Debug, Hash)]
 enum GameState {
@@ -37,7 +38,7 @@ enum GameState {
 fn main() {
     App::new()
         .insert_resource(WindowDescriptor {
-            title: "Roguelike Game".to_string(),
+            title: "Ascii Factory".to_string(),
             width: SCREEN_WIDTH as f32 * 8.0,
             height: SCREEN_HEIGHT as f32 * 8.0,
             resizable: false,
@@ -59,14 +60,13 @@ fn main() {
         .init_resource::<Map>()
         .add_state(GameState::StartUp)
         .add_system_set(SystemSet::on_enter(GameState::StartUp).with_system(add_player))
-        //.add_system(multi_glyph_entity_test)
         .add_system(window_title_system)
         .add_system_set(
             SystemSet::new()
                 // This prints out "hello world" once every second
                 .with_run_criteria(FixedTimestep::step(TIMESTEP))
                 .with_system(handle_conveyer_placement)
-                .with_system(test_add_movable)        
+                .with_system(place_miner)
         )
         .add_system_set(
             SystemSet::new()
@@ -75,38 +75,72 @@ fn main() {
                 .with_system(update_mover_conveyer)
                 .with_system(input)
         )
+        .add_system_set(
+            SystemSet::new()
+                // This prints out "hello world" once every second
+                .with_run_criteria(FixedTimestep::step(TIMESTEP_MACHINE))
+                .with_system(update_miner)
+        )
         .add_system(render)
         .run();
 }
 
-fn test_add_movable(
+fn place_miner(
     mut commands: Commands,
-    buttons: Res<Input<MouseButton>>,
     ctx: Res<BracketContext>,
-    entities:Query<(Entity, &Transform)>,
-    mut map: ResMut<Map>)
-{
-    //Spawn movable at mouse position
-    let m_pos=ctx.get_mouse_position_for_current_layer();
-    //Check if any entities already exist at mouse position using the query
-    let mut entity_at_pos = false;
-    for (entity,transform) in entities.iter() {
-        if transform.translation.x == m_pos.x as f32 && transform.translation.y == m_pos.y as f32 {
-            entity_at_pos = true;
-        }
-    }
+    buttons: Res<Input<MouseButton>>,
+    mut query: Query<(&Miner, &mut Transform)>,
+){
+    if buttons.pressed(MouseButton::Left) {
+        let m_pos=ctx.get_mouse_position_for_current_layer();
+        //Make sure there's no miners currently at m_pos 
 
-    if !entity_at_pos && buttons.pressed(MouseButton::Middle) {
-        commands.spawn()
-        .insert(Movable{})
-        .insert(Transform{
-            translation:Vec3::new(m_pos.x as f32,m_pos.y as f32,0.0),
+
+        for (miner, mut transform) in &mut query.iter() {
+            if transform.translation == Vec3::new(m_pos.x as f32, m_pos.y as f32, 0.0) {
+                return;
+            }
+        }
+        commands.spawn().insert(Miner{radius: 3, ..Default::default()}).insert(Transform{
+            translation: Vec3::new(m_pos.x as f32, m_pos.y as f32,0.),
             ..Default::default()
-        })
-        .insert(Tile{
-            tile_type:TileType::Binary0,
-            tile_glyph:to_cp437('0')
-        });
+        });    
+    }
+}
+
+fn update_miner(
+    mut commands: Commands,
+    ctx: Res<BracketContext>,
+    buttons: Res<Input<MouseButton>>,
+    mut query: Query<(&Miner, &mut Transform)>,
+    map: Res<Map>,
+){
+    //Get all map tiles underneath each miner within it's radius
+    for (miner, mut transform) in &mut query.iter() {
+        let mut tiles: Vec<Tile> = Vec::new();
+        for x in (transform.translation.x - miner.radius as f32) as i32..=(transform.translation.x + miner.radius as f32) as i32 {
+            for y in (transform.translation.y - miner.radius as f32) as i32..=(transform.translation.y + miner.radius as f32) as i32 {
+                if map.get_tile_at_pos(x, y).tile_type==TileType::Binary0 || map.get_tile_at_pos(x, y).tile_type==TileType::Binary1 {
+                    tiles.push(map.get_tile_at_pos(x, y));
+                }
+            }
+        }
+        //Spawn a random entity based on a random tile from tiles vector
+        if tiles.len()>0 {
+            println!("Creating new entity");
+            let mut rng = rand::thread_rng();
+            let random_tile = tiles[rng.gen_range(0..tiles.len())];
+            commands.spawn()
+            .insert(Movable{})
+            .insert(Tile{
+                tile_type: random_tile.tile_type,
+                tile_glyph: random_tile.tile_glyph,
+            })
+            .insert(Transform{
+                translation: Vec3::new(transform.translation.x + 6.,transform.translation.y,0.),
+                ..Default::default()
+            });
+        }
     }
 }
 
@@ -185,47 +219,8 @@ fn add_player(mut commands: Commands) {
             translation: Vec3::new(10., 10., 1.),
             ..Default::default()
         })
+        .insert(Movable{})
         .insert(Controllable {});
-}
-
-fn multi_glyph_entity_test(    
-    mut commands: Commands,
-    buttons: Res<Input<MouseButton>>,
-    ctx: Res<BracketContext>,
-    mut query: Query<(Entity, &Transform, With<Tile>)>,
-    mut map: ResMut<Map>
-){
-    let _position = ctx.get_mouse_position_for_current_layer();
-    let m_pos = Vec3::new(_position.x as f32, _position.y as f32, 0.);
-
-    let test_multi= MultiGlyphRenderer {
-        glyphs: vec![to_cp437('#'), to_cp437('#'), to_cp437('#'), to_cp437('#'), to_cp437('#'), to_cp437('#'), 
-                     to_cp437('#'), to_cp437(' '), to_cp437(' '), to_cp437(' '), to_cp437(' '), to_cp437('#'),
-                     to_cp437('#'), to_cp437(' '), to_cp437(' '), to_cp437(' '), to_cp437(' '), to_cp437('#'),
-                     to_cp437('#'), to_cp437(' '), to_cp437(' '), to_cp437(' '), to_cp437(' '), to_cp437('#'),
-                     to_cp437('#'), to_cp437(' '), to_cp437(' '), to_cp437(' '), to_cp437(' '), to_cp437('#'),
-                     to_cp437('#'), to_cp437('#'), to_cp437('#'), to_cp437('#'), to_cp437('#'), to_cp437('#')],
-        foreground: RGB::named(YELLOW),
-        background: RGB::named(BLACK),
-        width: 6,
-        height: 6,
-        layer: 1,
-    };
-
-    if buttons.pressed(MouseButton::Left) {
-        //Insert the glyphs from the multi glyph renderer into the map's tile vector at the correct x,y position
-        for x in 0..test_multi.width {
-            for y in 0..test_multi.height {
-                //Turn x, y into 1D coordinates for map.tiles
-                let xy = (x+(_position.x-test_multi.width/2)) + (y+(_position.y-test_multi.height/2)) * map.width;
-                let glyph=test_multi.glyphs[(x + y * test_multi.width) as usize];
-                if xy<map.tiles.len() as i32 && glyph!=to_cp437(' ')  {                    
-                    map.tiles[xy as usize].tile_type = TileType::Ascii;
-                    map.tiles[xy as usize].tile_glyph = glyph;
-                }
-            }
-        }
-    }
 }
 
 fn window_title_system(mut windows: ResMut<Windows>, ctx: Res<BracketContext>) {
@@ -268,6 +263,7 @@ fn render(
     mut ctx: Res<BracketContext>,
     mut query_player: Query<(&Player, &Transform)>,
     mut query_movable: Query<(&Movable, &Transform,&Tile)>,
+    mut query_render: Query<(&Miner, &Transform)>,
     mut map: ResMut<Map>
 ) {
     ctx.set_active_console(1);
@@ -278,13 +274,17 @@ fn render(
     for (movable, transform,tile) in query_movable.iter() {
         tile.render_glyph(transform.translation.x as i32, transform.translation.y as i32, ctx.as_ref().clone());
     }
+    for(miner,trannsform) in query_render.iter_mut(){
+        miner.render_glyph(trannsform.translation.x as i32, trannsform.translation.y as i32, ctx.as_ref().clone());
+    }
+    
 
     ctx.set_active_console(0);
     ctx.cls();
     //Iterate through map.tiles as if it were a 2D array and render each tile
     for x in 0..map.width {
         for y in 0..map.height {
-            let xy = (x+y*map.width);
+            let xy = x+y*map.width;
             let glyph = map.tiles[xy as usize].tile_glyph;
             if map.tiles[xy as usize].tile_glyph!=to_cp437(' ') {
                 map.tiles[xy as usize].render_glyph(x, y, ctx.as_ref().clone())
