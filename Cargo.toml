@@ -9,8 +9,18 @@ edition = "2021"
 bevy = { git = "https://github.com/bevyengine/bevy.git" }
 rand = "*"
 bracket-noise = "0.8.2"
-
+iyes_loopless="0.6.1"
 
 [dependencies.bracket-bevy]
 git="https://github.com/amethyst/bracket-lib.git"
 branch="bevy"
+
+
+
+# Enable only a small amount of optimization in debug mode
+[profile.dev]
+opt-level = 1
+
+# Enable high optimizations for dependencies (incl. Bevy), but not for our code:
+[profile.dev.package."*"]
+opt-level = 3

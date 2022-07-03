@@ -23,7 +23,8 @@ impl GlyphRenderer for Tile {
         };
         //Set fg and bg based on tile_type
         let (fg,bg)=match self.tile_type {
-            TileType::Ascii | TileType::Binary0 | TileType::Binary1 | TileType::Nothing =>(RGB::named(WHITE),RGB::named(BLACK)),
+            TileType::Binary0 | TileType::Binary1 | TileType::Nothing =>(RGB::named(GRAY50),RGB::named(BLACK)),
+            TileType::Ascii => (RGB::named(RED),RGB::named(BLACK)),
             TileType::Conveyer=>(RGB::named(YELLOW1),RGB::named(BLACK)),
         };
 
@@ -77,6 +78,18 @@ impl Map{
             return;
         }
         self.tiles[(y*self.width+x) as usize]=tile;
+    }
+    //Iterate through map.tiles and render each tile
+    pub fn render(&self, ctx: &bracket_bevy::BracketContext) {
+        for x in 0..self.width {
+            for y in 0..self.height {
+                let xy = x+y*self.width;
+                let glyph = self.tiles[xy as usize].tile_glyph;
+                if self.tiles[xy as usize].tile_glyph!=to_cp437(' ') {
+                    self.tiles[xy as usize].render_glyph(x, y, ctx.clone())
+                }
+            }
+        }
     }
 }
 
